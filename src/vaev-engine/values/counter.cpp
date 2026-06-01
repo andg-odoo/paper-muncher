@@ -28,6 +28,13 @@ export struct AdditiveCounterSymbol {
     }
 };
 
+export template <>
+struct ValueParser<AdditiveCounterSymbol> {
+    static Res<AdditiveCounterSymbol> parse(Cursor<Css::Sst>& c) {
+        return parseValue<CombinatorAll<AdditiveCounterSymbol>>(c);
+    }
+};
+
 // https://drafts.csswg.org/css-counter-styles-3/#symbols-function
 export struct CounterSymbolsFunc {
     Opt<CounterSymbolsType> type;

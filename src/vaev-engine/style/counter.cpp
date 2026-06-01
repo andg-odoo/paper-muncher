@@ -647,6 +647,9 @@ struct SystemCounterDescriptor {
     void apply(CounterDescriptors& s) const {
         s.system = value;
     }
+
+    Res<> parse(Cursor<Css::Sst>& c) {
+    }
 };
 
 // https://drafts.csswg.org/css-counter-styles-3/#descdef-counter-style-negative

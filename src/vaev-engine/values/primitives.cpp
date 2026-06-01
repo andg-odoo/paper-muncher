@@ -1,5 +1,6 @@
 module;
 
+#include <dirent.h>
 #include <karm/macros>
 
 export module Vaev.Engine:values.primitives;
@@ -158,12 +159,64 @@ struct ValueParser<Ref::Url> {
     }
 };
 
+export template <StrLit NAME, typename T>
+struct Function;
+
 // MARK: Combinator ------------------------------------------------------------
 // https://drafts.csswg.org/css-values-4/#component-combinators
 
+// https://drafts.csswg.org/css-values-4/#comb-all
+export template <typename TupleLike>
+struct CombinatorAll;
+
+export template <typename... Ts>
+struct ValueParser<CombinatorAll<Tuple<Ts...>>> {
+    static Res<Tuple<Ts...>> parse(Cursor<Css::Sst>& c) {
+        Tuple<Opt<Ts>...> values;
+
+        while (not values and not c.ended()) {
+            auto& [... slots] = values;
+            bool any = ([]<typename T>(Opt<T>& slot) {
+                if (slot)
+                    return Ok();
+            }(slots) or ...);
+            if (not any)
+                return Error::invalidInput("expected all of");
+        }
+
+        if (not values)
+            return Error::invalidInput("expected all of");
+
+        return Ok(values.apply([](auto&... vs) {
+            return Tuple{vs.take()...};
+        }));
+    }
+};
+
+export template <typename T>
+struct ValueParser<CombinatorAll<T>> {
+    using Tuple = decltype(toTuple(Meta::declval<T>()));
+
+    static Res<T> parse(Cursor<Css::Sst>& c) {
+    }
+};
+
+// https://drafts.csswg.org/css-values-4/#comb-any
+template <typename TupleLike>
+struct CombinatorAny;
+
+export template <typename T>
+struct ValueParser<CombinatorAny<T>> {
+    static Res<T> parse(Cursor<Css::Sst>& c) {
+    }
+};
+
 // https://drafts.csswg.org/css-values-4/#comb-one
 export template <ValueParseable... Ts>
-struct ValueParser<Union<Ts...>> {
+using CombinatorOne = Union<Ts...>;
+
+export template <ValueParseable... Ts>
+struct ValueParser<CombinatorOne<Ts...>> {
     static Res<Union<Ts...>> parse(Cursor<Css::Sst>& c) {
         if (c.ended())
             return Error::invalidData("unexpected end of input");
