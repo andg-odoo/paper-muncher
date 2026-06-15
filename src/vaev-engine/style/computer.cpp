@@ -32,12 +32,14 @@ export struct Computer {
 
     // https://drafts.csswg.org/css-lists/#counter-scope
     Yield<Dom::OriginatingElement> _iterElementInScope(Dom::Element& el) {
-        Gc::Ptr<Dom::Element> sibling = el;
-        do {
-            co_yield Gc::Ref<Dom::Element>(sibling);
-            for (Gc::Ref<Dom::Node> c : el.iterDepthFirst(); c and c.isi)
-                co_yield Dom::OriginatingElement{c};
-        } while (sibling = el.nextSibling());
+        for (Gc::Ptr<Dom::Node> sibling = el; sibling; sibling = sibling->nextSibling()) {
+            if (auto element = sibling->is<Dom::Element>()) {
+                co_yield element.upgrade();
+                for (Gc::Ref<Dom::Node> child : element->iterDepthFirst())
+                    if (auto childElement = child->is<Dom::Element>())
+                        co_yield Dom::OriginatingElement{childElement.upgrade()};
+            }
+        }
     }
 
     // https://drafts.csswg.org/css-lists/#instantiate-counter:~:text=dynamically%20calculate%20the%20initial%20value
