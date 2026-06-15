@@ -7,15 +7,18 @@ import :values.counter;
 
 using namespace Karm;
 
+// NOTE: Importing DOM would create a reference cycle
+namespace Vaev::Dom {
+export using ElementHandle = void*;
+} // namespace Vaev::Dom
+
 namespace Vaev::Style {
 
 // MARK: Counter Set ------------------------------------------------------
 
-using ElementHandle = void*;
-
 struct Counter {
     CustomIdent name;
-    ElementHandle el;
+    Dom::ElementHandle el;
     bool reversed;
     Integer value;
 
@@ -52,7 +55,7 @@ struct CounterSet {
     }
 
     // https://drafts.csswg.org/css-lists/#instantiate-counter
-    Counter& instantiateCounter(ElementHandle el, CounterProps::Reset const& reset, Integer initial) {
+    Counter& instantiateCounter(Dom::ElementHandle el, CounterProps::Reset const& reset, Integer initial) {
         // Let counters be element’s CSS counters set.
 
         // Let innermost counter be the last counter in counters with the name name.
@@ -67,7 +70,7 @@ struct CounterSet {
     }
 
     // https://drafts.csswg.org/css-lists/#propdef-counter-increment
-    void increment(ElementHandle el, CounterProps::Increment const& increment) {
+    void increment(Dom::ElementHandle el, CounterProps::Increment const& increment) {
         auto [counter, _] = innerMost(increment.name);
         if (not counter) {
             // If there is not currently a counter of the given name on the element, the element instantiates a new counter of the given name with a starting value of 0 before setting or incrementing its value.
@@ -79,7 +82,7 @@ struct CounterSet {
     }
 
     // https://drafts.csswg.org/css-lists/#propdef-counter-set
-    void set(ElementHandle el, CounterProps::Set& set) {
+    void set(Dom::ElementHandle el, CounterProps::Set& set) {
         auto [counter, _] = innerMost(set.name);
         if (not counter) {
             // If there is not currently a counter of the given name on the element, the element instantiates a new counter of the given name with a starting value of 0 before setting or incrementing its value.
@@ -94,7 +97,7 @@ struct CounterSet {
         return Karm::any(_counters);
     }
 
-    bool contains(CustomIdent name, ElementHandle el) const {
+    bool contains(CustomIdent name, Dom::ElementHandle el) const {
         return iter(_counters) |
                Any([&](Counter const& c) {
                    return c.name == name and c.el == el;

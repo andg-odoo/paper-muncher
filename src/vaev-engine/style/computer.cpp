@@ -30,13 +30,18 @@ export struct Computer {
 
     // MARK: Counters ----------------------------------------------------------
 
-    Yield<Dom::OriginatingElement> _iterElementInScope() {
-        // TODO: Implement
-        co_return;
+    // https://drafts.csswg.org/css-lists/#counter-scope
+    Yield<Dom::OriginatingElement> _iterElementInScope(Dom::Element& el) {
+        Gc::Ptr<Dom::Element> sibling = el;
+        do {
+            co_yield Gc::Ref<Dom::Element>(sibling);
+            for (Gc::Ref<Dom::Node> c : el.iterDepthFirst(); c and c.isi)
+                co_yield Dom::OriginatingElement{c};
+        } while (sibling = el.nextSibling());
     }
 
     // https://drafts.csswg.org/css-lists/#instantiate-counter:~:text=dynamically%20calculate%20the%20initial%20value
-    Integer _dynamicallyCalculateCounterInitialValue(CustomIdent counter) {
+    Integer _dynamicallyCalculateCounterInitialValue(CustomIdent counter, Dom::Element& element) {
         // 1. Let num be 0.
         Integer num = 0;
 
@@ -44,7 +49,7 @@ export struct Computer {
         Integer lastNonZeroIncrementNegated = 0;
 
         // 3. For each element or pseudo-element el that increments or sets the same counter in the same scope:
-        for (auto el : _iterElementInScope()) {
+        for (auto el : _iterElementInScope(element)) {
             auto maybeCounterIncrement =
                 iter(el.computedValues()->counters->increment) |
                 FindFirst([&](CounterProps::Increment const& increment) {
@@ -86,8 +91,9 @@ export struct Computer {
     }
 
     // https://drafts.csswg.org/css-lists/#auto-numbering
-    CounterSet _resolveCounter(CounterSet& parent, CounterSet& sibling, ElementHandle el, ComputedValues const& style) {
+    CounterSet _resolveCounter(CounterSet& parent, CounterSet& sibling, Dom::Element& element, ComputedValues const& style) {
         auto const& countersStyle = *style.counters;
+        Dom::ElementHandle elementHandle = &element;
 
         // 1. Existing counters are inherited from previous elements.
         auto counters = CounterSet::inherits(parent, sibling);
@@ -95,24 +101,24 @@ export struct Computer {
         // 2. New counters are instantiated (counter-reset).
         for (auto& counterReset : countersStyle.reset) {
             Integer initial = counterReset.value.unwrapOrElse([&] {
-                return counterReset.reversed ? _dynamicallyCalculateCounterInitialValue(counterReset.name) : 0;
+                return counterReset.reversed ? _dynamicallyCalculateCounterInitialValue(counterReset.name, element) : 0;
             });
-            counters.instantiateCounter(el, counterReset, initial);
+            counters.instantiateCounter(elementHandle, counterReset, initial);
         }
 
         // 3. Counter values are incremented (counter-increment).
         if (countersStyle.increment) {
             for (auto& counterIncrement : countersStyle.increment) {
-                counters.increment(el, counterIncrement);
+                counters.increment(elementHandle, counterIncrement);
             }
         } else if (style.display == Display::Item::YES) {
             // https://www.w3.org/TR/css-lists-3/#list-item-counter
-            counters.increment(el, {.name = CustomIdent{"list-item"_sym}, .value = 1});
+            counters.increment(elementHandle, {.name = CustomIdent{"list-item"_sym}, .value = 1});
         }
 
         // 4. Counter values are explicitly set (counter-set).
         for (auto& counterSet : countersStyle.set)
-            counters.increment(el, counterSet);
+            counters.increment(elementHandle, counterSet);
 
         return counters;
     }
@@ -121,7 +127,7 @@ export struct Computer {
         CounterSet currentCounters = _resolveCounter(
             parentCounters,
             siblingCounters,
-            &el,
+            el,
             *el.computedValues()
         );
         CounterSet childSiblingCounters = {};
